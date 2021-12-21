@@ -26,6 +26,12 @@ char  buf[100];
 SocketIoClient socket;
 WiFiMulti WiFiMulti;
 
+/**
+ * set up lifecycle function of esp32 device
+ * the function does:
+ * connect the device to wifi access point 
+ * set up a socket.io connection
+ */
 void setup()
 {
     Serial.begin(115200);
@@ -38,9 +44,13 @@ void setup()
     
     socket.begin(SOCKETIO);
     Serial.println("Setup done");
-    socket.emit("esp32wifi-info", "hdkdkkjhjddj");
 }
 
+/**
+ * loop lifecycle function do it while the esp32 is connected to power
+ * the function does:
+ * send the rssi of each access point to server
+ */
 void loop()
 {
     //Run Socket
@@ -56,7 +66,7 @@ void loop()
         Serial.print(n);
         Serial.println(" networks found");
         for (int i = 0; i < n; ++i) {
-            // Print SSID and RSSI for each network found
+            // Print RSSI for each network found
             Serial.print(i + 1);
             Serial.print(": ");
             Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
@@ -71,7 +81,11 @@ void loop()
     delay(LOOPER_DELAY);
 }
 
-
+/**
+ * connects the device to access point wifi function
+ * the function connects the esp32 to wifi.
+ * thus it can send requested to server 
+ */
 void connectWifi() {
   //Connects ESP2866 Wifi
   WiFi.mode(WIFI_STA);
