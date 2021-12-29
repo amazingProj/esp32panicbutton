@@ -1,3 +1,5 @@
+#include <SocketIoClient.h>
+
 /*
  *  This sketch demonstrates how to scan WiFi networks.
  *  The API is almost the same as with the WiFi Shield library,
@@ -9,8 +11,8 @@
 #include "stdio.h"
 
 #define LOOPER_DELAY 5000
-#define SOCKETIO "http://192.168.112.23:3000" //CHANGE TO THE IP OF THE SOCKET IO SERVER
-
+#define SOCKETIO "192.168.112.23" //CHANGE TO THE IP OF THE SOCKET IO SERVER
+#define PORT 3000
 
 //WIFI LOGIN
 #ifndef STASSID
@@ -23,8 +25,9 @@ const char* ssid     = STASSID;
 const char* password = STAPSK;
 char  buf[100];
 
-SocketIoClient socket;
+SocketIoClient socketIO;
 WiFiMulti WiFiMulti;
+uint64_t messageTimestamp;
 
 /**
  * set up lifecycle function of esp32 device
@@ -42,7 +45,7 @@ void setup()
     connectWifi();
     delay(100);
     
-    socket.begin(SOCKETIO);
+    socketIO.begin("192.168.167.23", 3000);
     Serial.println("Setup done");
 }
 
@@ -53,11 +56,10 @@ void setup()
  */
 void loop()
 {
-    //Run Socket
-    socket.loop();
-    Serial.println("scan start");
-
-    // WiFi.scanNetworks will return the number of networks found
+  uint64_t now = millis();
+  if(now - messageTimestamp > 12000) {
+    messageTimestamp = now;
+    // Send event     
     int n = WiFi.scanNetworks();
     Serial.println("scan done");
     if (n == 0) {
@@ -66,19 +68,16 @@ void loop()
         Serial.print(n);
         Serial.println(" networks found");
         for (int i = 0; i < n; ++i) {
-            // Print RSSI for each network found
-            Serial.print(i + 1);
-            Serial.print(": ");
-            Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
+            Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
+            Serial.println(WiFi.macAddress());
+            socket.emit("esp32wifi-info", WiFi.BSSIDstr(i));
             snprintf(buf, sizeof(buf), "%d",  WiFi.RSSI(i));
             Serial.print(buf);
             socket.emit("esp32wifi-info", buf);
         }
     }
     Serial.println("");
-
-    // Wait a bit before scanning again
-    delay(LOOPER_DELAY);
+  }    
 }
 
 /**
