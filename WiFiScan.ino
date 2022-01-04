@@ -10,7 +10,8 @@
 #include "SocketIoClient.h"
 #include "stdio.h"
 
-#define LOOPER_DELAY 5000
+#define DEBUG_MODE 1
+#define LOOPER_DELAY 12000
 #define SOCKETIO "192.168.112.23" //CHANGE TO THE IP OF THE SOCKET IO SERVER
 #define PORT 3000
 
@@ -24,6 +25,7 @@
 const char* ssid     = STASSID;
 const char* password = STAPSK;
 char  buf[100];
+char buf1[100];
 
 SocketIoClient socketIO;
 WiFiMulti WiFiMulti;
@@ -45,7 +47,7 @@ void setup()
     connectWifi();
     delay(100);
     
-    socketIO.begin("192.168.167.23", 3000);
+    socketIO.begin("192.168.254.23", 3000);
     Serial.println("Setup done");
 }
 
@@ -57,7 +59,7 @@ void setup()
 void loop()
 {
   uint64_t now = millis();
-  if(now - messageTimestamp > 12000) {
+  if(now - messageTimestamp > LOOPER_DELAY) {
     messageTimestamp = now;
     // Send event     
     int n = WiFi.scanNetworks();
@@ -68,12 +70,21 @@ void loop()
         Serial.print(n);
         Serial.println(" networks found");
         for (int i = 0; i < n; ++i) {
-            Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
-            Serial.println(WiFi.macAddress());
-            socket.emit("esp32wifi-info", WiFi.BSSIDstr(i));
+            if (DEBUG_MODE){
+              Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
+              Serial.println(WiFi.macAddress());
+            }
+            // send via socket io the device's mac address
+            socketIO.emit("esp32wifi-info", WiFi.macAddress());
+            
+            
+            WiFi.BSSIDstr(i).toCharArray(buf1, sizeof(buf1));
+            // send the mac address of the access point via socket io
+            socketIO.emit("esp32wifi-info", buf1);
+            
             snprintf(buf, sizeof(buf), "%d",  WiFi.RSSI(i));
-            Serial.print(buf);
-            socket.emit("esp32wifi-info", buf);
+            // send the rssi from the access point via socket io
+            socketIO.emit("esp32wifi-info", buf);
         }
     }
     Serial.println("");
