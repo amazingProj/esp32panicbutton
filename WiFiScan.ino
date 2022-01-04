@@ -12,7 +12,7 @@
 
 #define DEBUG_MODE 1
 #define LOOPER_DELAY 12000
-#define SOCKETIO "192.168.112.23" //CHANGE TO THE IP OF THE SOCKET IO SERVER
+#define SOCKETIO "192.168.254.23" //CHANGE TO THE IP OF THE SOCKET IO SERVER
 #define PORT 3000
 
 //WIFI LOGIN
@@ -26,6 +26,7 @@ const char* ssid     = STASSID;
 const char* password = STAPSK;
 char  buf[100];
 char buf1[100];
+char buf2[100];
 
 SocketIoClient socketIO;
 WiFiMulti WiFiMulti;
@@ -74,8 +75,9 @@ void loop()
               Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
               Serial.println(WiFi.macAddress());
             }
+            WiFi.macAddress().toCharArray(buf2, sizeof(buf2));
             // send via socket io the device's mac address
-            socketIO.emit("esp32wifi-info", WiFi.macAddress());
+            socketIO.emit("esp32wifi-info", buf2);
             
             
             WiFi.BSSIDstr(i).toCharArray(buf1, sizeof(buf1));
