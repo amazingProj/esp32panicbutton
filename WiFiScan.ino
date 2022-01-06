@@ -28,6 +28,40 @@ char buf2[100];
 char *mqttServer = "broker.hivemq.com";
 int mqttPort = 1883;
 
+
+class Information {
+  private:
+    int macStrSize = 64;
+  public:
+    bool isAlarmedOn;
+    int numberOfAccessPoints;
+    char *macAddressDevice;
+
+    Information(){
+      isAlarmedOn = false;
+      numberOfAccessPoints = 0;
+      macAddressDevice = new Char[macStrSize];
+    }
+    
+    Information(bool _isAlarmedOn, int _numberOfAccessPoints, char *_macAddress){
+      isAlarmedOn = _isAlarmedOn;
+      numberOfAccessPoints = _numberOfAccessPoints;
+      macAddressDevice = _macAddress;
+    }
+
+    char *JsonFormat(){
+      int size = 264;
+      char *str = new Char[size];
+      str = "{";
+      str += isAlarmedOn.toString();
+      str += String(numberOfAccessPoints);
+      str += macAddressDevice;
+    }
+    
+}
+
+Information info = Information();
+
 //Replace these 3 with the strings of your choice
 const char* mqtt_client_name = "ESPYS2111";
 const char* mqtt_pub_topic = "/ys/testpub"; //The topic to which our client will publish
@@ -46,7 +80,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
    }
    Serial.println();
    Serial.println();
-  
 }
 
 /**
@@ -58,11 +91,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void setup()
 {
     Serial.begin(115200);
-
+    isAlarmedOn = false;
     // Set WiFi to station mode and disconnect from an AP if it was previously connected
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
     connectWifi();
+    
     delay(100);
     mqttClient.setServer(mqttServer, mqttPort);
     mqttClient.setCallback(callback);
@@ -82,6 +116,13 @@ void loop()
     messageTimestamp = now;
     // Send event     
     int n = WiFi.scanNetworks();
+    info.numberOfAccessPoints = n;
+    if (DEBUG_MODE){
+      Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
+      Serial.println(WiFi.macAddress());
+    }
+    
+    info.macAddressDevice = WiFi.macAddress();
     Serial.println("scan done");
     if (n == 0) {
         Serial.println("no networks found");
@@ -89,14 +130,10 @@ void loop()
         Serial.print(n);
         Serial.println(" networks found");
         for (int i = 0; i < n; ++i) {
-            if (DEBUG_MODE){
-              Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
-              Serial.println(WiFi.macAddress());
-            }
-            WiFi.macAddress().toCharArray(buf2, sizeof(buf2));
-            // send via socket io the device's mac address
-         
             
+            WiFi.macAddress().toCharArray(buf2, sizeof(buf2));
+            // send via mqtt the device's mac address
+         
             
             WiFi.BSSIDstr(i).toCharArray(buf1, sizeof(buf1));
             // send the mac address of the access point via mqtt
@@ -105,20 +142,21 @@ void loop()
             snprintf(buf, sizeof(buf), "%d",  WiFi.RSSI(i));
             // send the rssi from the access point via mqtt
             
-            if (!mqttClient.connected()){
-                while (!mqttClient.connected()){
-                   if(mqttClient.connect(mqtt_client_name)){
-                      Serial.println("MQTT Connected!");
-                      mqttClient.subscribe(mqtt_sub_topic);
-                   }
-                   else{
-                      Serial.print(".");
-                   }
-                }
-            }
-           mqttClient.publish(mqtt_pub_topic, "Coca Kola");
-           Serial.println("Message published");
         }
+        
+        if (!mqttClient.connected()){
+            while (!mqttClient.connected()){
+               if(mqttClient.connect(mqtt_client_name)){
+                  Serial.println("MQTT Connected!");
+                  mqttClient.subscribe(mqtt_sub_topic);
+               }
+               else{
+                  Serial.print(".");
+               }
+            }
+        }
+        mqttClient.publish(mqtt_pub_topic, buf);
+        Serial.println("Message published");
     }
     Serial.println("");
   }    
