@@ -35,12 +35,12 @@ class Information {
   public:
     bool isAlarmedOn;
     int numberOfAccessPoints;
-    char *macAddressDevice;
+    String macAddressDevice;
 
     Information(){
       isAlarmedOn = false;
       numberOfAccessPoints = 0;
-      macAddressDevice = new Char[macStrSize];
+      macAddressDevice = new char[macStrSize];
     }
     
     Information(bool _isAlarmedOn, int _numberOfAccessPoints, char *_macAddress){
@@ -49,18 +49,24 @@ class Information {
       macAddressDevice = _macAddress;
     }
 
-    char *JsonFormat(){
+    String JsonFormat(){
       int size = 264;
-      char *str = new Char[size];
+      String str = new char[size];
       str = "{";
-      str += isAlarmedOn.toString();
+      String isAlarmedStr;
+      if (isAlarmedOn){
+        isAlarmedStr = "true";
+      }
+      else{
+        isAlarmedStr = "false";
+      }
+      
+      str = str + isAlarmedStr;
       str += String(numberOfAccessPoints);
       str += macAddressDevice;
     }
     
-}
-
-Information info = Information();
+};
 
 //Replace these 3 with the strings of your choice
 const char* mqtt_client_name = "ESPYS2111";
@@ -91,7 +97,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void setup()
 {
     Serial.begin(115200);
-    isAlarmedOn = false;
     // Set WiFi to station mode and disconnect from an AP if it was previously connected
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
@@ -110,7 +115,8 @@ void setup()
  */
 void loop()
 {
-  
+  Information info = Information();
+  info.isAlarmedOn = false;
   uint64_t now = millis();
   if(now - messageTimestamp > LOOPER_DELAY) {
     messageTimestamp = now;
@@ -168,7 +174,7 @@ void loop()
  * thus it can send requested to server 
  */
 void connectWifi() {
-  //Connects ESP2866 Wifi
+  //Connects ESP32 Wifi
   WiFi.mode(WIFI_STA);
   WiFiMulti.addAP(ssid, password);
 
