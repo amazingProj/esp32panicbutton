@@ -1,3 +1,4 @@
+#include <PubSubClient.h>
 /*
  *  This sketch demonstrates how to scan WiFi networks.
  *  The API is almost the same as with the WiFi Shield library,
@@ -5,12 +6,11 @@
  */
 #include "WiFi.h"
 #include "WiFiMulti.h"
-#include "SocketIoClient.h"
 #include "stdio.h"
 
-#define LOOPER_DELAY 5000
-#define SOCKETIO "http://192.168.112.23:3000" //CHANGE TO THE IP OF THE SOCKET IO SERVER
-
+#define DEBUG_MODE 1
+#define LOOPER_DELAY 12000
+#define PORT 3000
 
 //WIFI LOGIN
 #ifndef STASSID
@@ -22,10 +22,39 @@
 const char* ssid     = STASSID;
 const char* password = STAPSK;
 char  buf[100];
+char buf1[100];
+char buf2[100];
+//The broker and port are provided by http://www.mqtt−dashboard.com/
+char *mqttServer = "broker.hivemq.com";
+int mqttPort = 1883;
 
-SocketIoClient socket;
+//Replace these 3 with the strings of your choice
+const char* mqtt_client_name = "ESPYS2111";
+const char* mqtt_pub_topic = "/ys/testpub"; //The topic to which our client will publish
+const char* mqtt_sub_topic = "/ys/testsub"; //The topic to which our client will subscribe
+
+WiFiClient client;
+PubSubClient mqttClient(client);
+
 WiFiMulti WiFiMulti;
+uint64_t messageTimestamp;
 
+void callback(char* topic, byte* payload, unsigned int length) {
+   Serial.print("Message received from: "); Serial.println(topic);
+   for (int i = 0; i < length; i++) {
+      Serial.print((char)payload[i]);
+   }
+   Serial.println();
+   Serial.println();
+  
+}
+
+/**
+ * set up lifecycle function of esp32 device
+ * the function does:
+ * connect the device to wifi access point 
+ * set up a socket.io connection
+ */
 void setup()
 {
     Serial.begin(115200);
@@ -35,19 +64,23 @@ void setup()
     WiFi.disconnect();
     connectWifi();
     delay(100);
-    
-    socket.begin(SOCKETIO);
+    mqttClient.setServer(mqttServer, mqttPort);
+    mqttClient.setCallback(callback);
     Serial.println("Setup done");
-    socket.emit("esp32wifi-info", "hdkdkkjhjddj");
 }
 
+/**
+ * loop lifecycle function do it while the esp32 is connected to power
+ * the function does:
+ * send the rssi of each access point to server
+ */
 void loop()
 {
-    //Run Socket
-    socket.loop();
-    Serial.println("scan start");
-
-    // WiFi.scanNetworks will return the number of networks found
+  
+  uint64_t now = millis();
+  if(now - messageTimestamp > LOOPER_DELAY) {
+    messageTimestamp = now;
+    // Send event     
     int n = WiFi.scanNetworks();
     Serial.println("scan done");
     if (n == 0) {
@@ -56,22 +89,46 @@ void loop()
         Serial.print(n);
         Serial.println(" networks found");
         for (int i = 0; i < n; ++i) {
-            // Print SSID and RSSI for each network found
-            Serial.print(i + 1);
-            Serial.print(": ");
-            Serial.println((WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?" ":"*");
+            if (DEBUG_MODE){
+              Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
+              Serial.println(WiFi.macAddress());
+            }
+            WiFi.macAddress().toCharArray(buf2, sizeof(buf2));
+            // send via socket io the device's mac address
+         
+            
+            
+            WiFi.BSSIDstr(i).toCharArray(buf1, sizeof(buf1));
+            // send the mac address of the access point via mqtt
+            
+            
             snprintf(buf, sizeof(buf), "%d",  WiFi.RSSI(i));
-            Serial.print(buf);
-            socket.emit("esp32wifi-info", buf);
+            // send the rssi from the access point via mqtt
+            
+            if (!mqttClient.connected()){
+                while (!mqttClient.connected()){
+                   if(mqttClient.connect(mqtt_client_name)){
+                      Serial.println("MQTT Connected!");
+                      mqttClient.subscribe(mqtt_sub_topic);
+                   }
+                   else{
+                      Serial.print(".");
+                   }
+                }
+            }
+           mqttClient.publish(mqtt_pub_topic, "Coca Kola");
+           Serial.println("Message published");
         }
     }
     Serial.println("");
-
-    // Wait a bit before scanning again
-    delay(LOOPER_DELAY);
+  }    
 }
 
-
+/**
+ * connects the device to access point wifi function
+ * the function connects the esp32 to wifi.
+ * thus it can send requested to server 
+ */
 void connectWifi() {
   //Connects ESP2866 Wifi
   WiFi.mode(WIFI_STA);
