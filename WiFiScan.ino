@@ -20,6 +20,7 @@
 #define LOOPER_DELAY 30000
 #define PORT 3000
 #define ACCESSPOINT_INFO_LENGTH 34
+#define ACCESS_POINT_SENT_PER_MESSAGE 3
 
 /*** define symbols ***/
 #define RIGHT_PARENTHESIS "{"
@@ -46,6 +47,7 @@ int messageSize = 0;
 int headerOfMqttMessageLength = 0;
 int partialMessageLength = 194;
 int temp = 0;
+int commaNumber = ACCESS_POINT_SENT_PER_MESSAGE;
 
 //Replace these 3 with the strings of your choice
 const char* mqtt_client_name = "ESPYS2111";
@@ -148,7 +150,7 @@ void loop()
       mqttMessage = mqttMessage + LEFT_PARENTHESIS;
       //Serial.println(mqttMessage);
       messageSize = mqttMessage.length();
-      partialMessageLength = 4 * ACCESSPOINT_INFO_LENGTH;
+      partialMessageLength = ACCESS_POINT_SENT_PER_MESSAGE * ACCESSPOINT_INFO_LENGTH;
       bool firstTime = true;
       for (FROMStringIndex = 0; FROMStringIndex < messageSize; FROMStringIndex += partialMessageLength) {
        
@@ -157,31 +159,30 @@ void loop()
         }
         else {
           TOStringIndex = FROMStringIndex + partialMessageLength;
-          if(!firstTime){
-            TOStringIndex += 4;
-          }
+         
         }
 
         if (firstTime){
           TOStringIndex += headerOfMqttMessageLength; 
-          TOStringIndex += 3;
+          
         }
+        
+        TOStringIndex += commaNumber;
         Serial.println(FROMStringIndex);
         Serial.println(TOStringIndex);
         Serial.println("\n");
         mqttMessage.substring(FROMStringIndex, TOStringIndex).toCharArray(messageBuffer, sizeof(messageBuffer));
         //Serial.println(messageBuffer);
         mqttClient.publish(mqtt_pub_topic, messageBuffer);
-        if (!firstTime){
-          FROMStringIndex += 4;  
-        }
+     
         
         if (firstTime){
           FROMStringIndex += headerOfMqttMessageLength;
+          
           firstTime = false;
-          FROMStringIndex += 3;
         }
         
+        FROMStringIndex += commaNumber;
        
       }
 
