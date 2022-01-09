@@ -94,7 +94,7 @@ void setup()
 /**
    loop lifecycle function do it while the esp32 is connected to power
    the function does:
-   send the rssi of each access point to server
+   send the rssi of each access point to server in json format
 */
 void loop()
 {
@@ -102,25 +102,34 @@ void loop()
   uint64_t now = millis();
   if (now - messageTimestamp > LOOPER_DELAY) {
     messageTimestamp = now;
-    mqttMessage = RIGHT_PARENTHESIS;
-    mqttMessage = mqttMessage + "numberOfAccessPoints" + COLON_TOKEN;
+    
     int n = WiFi.scanNetworks();
-    mqttMessage = mqttMessage + String(n) + COMMA;
+    
     Serial.println("scan done");
     if (n == 0) {
       Serial.println("no networks found");
     } else {
       Serial.print(n);
       Serial.println(" networks found");
+      
+      /***** set the initials values of the message ******/
+      mqttMessage = RIGHT_PARENTHESIS;
+      mqttMessage = mqttMessage + "numberOfAccessPoints" + COLON_TOKEN;
+      mqttMessage = mqttMessage + String(n) + COMMA;
       mqttMessage = mqttMessage + "macAddress" + COLON_TOKEN;
       mqttMessage = mqttMessage + WiFi.macAddress() + COMMA;
       mqttMessage = mqttMessage + "Ssid" + COLON_TOKEN;
       mqttMessage = mqttMessage + WiFi.SSID() + COMMA;
+
+      // save the length of the string (see above ) 
       headerOfMqttMessageLength = mqttMessage.length();
+      
       if (DEBUG_MODE) {
-        Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
+        //Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
         Serial.println(WiFi.macAddress());
       }
+
+      /******************* save all the wifi access point scans in the message string ****************/
       for (int i = 0; i < n; ++i) {
         mqttMessage = mqttMessage + RIGHT_PARENTHESIS;
 
@@ -129,13 +138,13 @@ void loop()
         mqttMessage = mqttMessage + "rssi" + COLON_TOKEN + String(WiFi.RSSI(i));
 
         mqttMessage = mqttMessage + LEFT_PARENTHESIS;
-
+        // if this is not the last access point put a comma between two differenet access points
         if (i != n - 1) {
           mqttMessage = mqttMessage + COMMA;
         }
 
       }
-
+      // make sure that it is connected to mqtt server
       if (!mqttClient.connected()) {
         while (!mqttClient.connected()) {
           if (mqttClient.connect(mqtt_client_name)) {
@@ -147,8 +156,10 @@ void loop()
           }
         }
       }
+
+      
       mqttMessage = mqttMessage + LEFT_PARENTHESIS;
-      //Serial.println(mqttMessage);
+      
       messageSize = mqttMessage.length();
       partialMessageLength = ACCESS_POINT_SENT_PER_MESSAGE * ACCESSPOINT_INFO_LENGTH;
       bool firstTime = true;
@@ -168,11 +179,9 @@ void loop()
         }
         
         TOStringIndex += commaNumber;
-        Serial.println(FROMStringIndex);
-        Serial.println(TOStringIndex);
-        Serial.println("\n");
+       
         mqttMessage.substring(FROMStringIndex, TOStringIndex).toCharArray(messageBuffer, sizeof(messageBuffer));
-        //Serial.println(messageBuffer);
+        
         mqttClient.publish(mqtt_pub_topic, messageBuffer);
      
         
