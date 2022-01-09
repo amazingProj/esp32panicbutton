@@ -10,17 +10,22 @@
 
 /***************** defines variables  ***********************/
 
-//WIFI LOGIN
+//WIFI LOGIN information
 #ifndef STASSID
 #define STASSID "benny" //CHANGE TO YOUR NETWORK NAME
 #define STAPSK  "0585002913" //CHANGE TO YOUR NETWORK PASSWORD
 #endif
 
-#define DEBUG_MODE 1
+// 0 is false and 1 is true
+#define DEBUG_MODE 0
+
+// global variables, change them to change code behavior
 #define LOOPER_DELAY 30000
 #define PORT 3000
 #define ACCESSPOINT_INFO_LENGTH 34
+// how much access point per one message section
 #define ACCESS_POINT_SENT_PER_MESSAGE 3
+
 
 /*** define symbols ***/
 #define RIGHT_PARENTHESIS "{"
@@ -28,18 +33,32 @@
 #define COLON_TOKEN ":"
 #define COMMA ","
 
+
 /*************************** global variables *********************/
 //CODE----------------------------
+// set the wifi ssid and password
 const char* ssid     = STASSID;
 const char* password = STAPSK;
-char  buf[100];
-char buf1[100];
-char buf2[100];
+
+
+/// buffers in use in the code 
 char messageBuffer[1024];
 
 //The broker and port are provided by http://www.mqtt−dashboard.com/
+// mqtt variables
 char *mqttServer = "broker.hivemq.com";
 int mqttPort = 1883;
+//Replace these 3 with the strings of your choice
+const char* mqtt_client_name = "ESP32Client";
+//The topic to which our client will publish
+const char* mqtt_pub_topic = "/ys/testpub"; 
+//The topic to which our client will subscribe
+const char* mqtt_sub_topic = "/ys/testsub"; 
+
+
+
+
+// belongs to the section that make the message in json format
 String mqttMessage = "";
 int FROMStringIndex = 0;
 int TOStringIndex = 0;
@@ -49,19 +68,26 @@ int partialMessageLength = 194;
 int temp = 0;
 int commaNumber = ACCESS_POINT_SENT_PER_MESSAGE;
 
-//Replace these 3 with the strings of your choice
-const char* mqtt_client_name = "ESPYS2111";
-const char* mqtt_pub_topic = "/ys/testpub"; //The topic to which our client will publish
-const char* mqtt_sub_topic = "/ys/testsub"; //The topic to which our client will subscribe
-
+// for wifi scanning
 WiFiClient client;
+
+// for mqtt messaging
 PubSubClient mqttClient(client);
 
+// for connecting to wifi
 WiFiMulti WiFiMulti;
+
+// for task scheduling
 uint64_t messageTimestamp;
 
 /*********************************** functions ******************************************/
 
+/**
+ * calls back some by reference messages from the server
+ * @param topic - a pointer to char array
+ *        payload - a pointer to bytee array
+ *        length - an int represents length of the payload
+ */
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message received from: "); Serial.println(topic);
   for (int i = 0; i < length; i++) {
