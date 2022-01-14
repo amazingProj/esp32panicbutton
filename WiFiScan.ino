@@ -12,20 +12,21 @@
 
 //WIFI LOGIN information
 #ifndef STASSID
-#define STASSID "benny" //CHANGE TO YOUR NETWORK NAME
-#define STAPSK  "0585002913" //CHANGE TO YOUR NETWORK PASSWORD
+//CHANGE TO YOUR NETWORK NAME
+#define STASSID "DIR-615-11E2" 
+//CHANGE TO YOUR NETWORK PASSWORD
+#define STAPSK  "77993892" 
 #endif
 
 // 0 is false and 1 is true
 #define DEBUG_MODE 0
 
 // global variables, change them to change code behavior
-#define LOOPER_DELAY 30000
+#define LOOPER_DELAY 10000
 #define PORT 3000
 #define ACCESSPOINT_INFO_LENGTH 34
 // how much access point per one message section
 #define ACCESS_POINT_SENT_PER_MESSAGE 3
-
 
 /*** define symbols ***/
 #define RIGHT_PARENTHESIS "{"
@@ -49,7 +50,7 @@ char messageBuffer[1024];
 char *mqttServer = "broker.hivemq.com";
 int mqttPort = 1883;
 //Replace these 3 with the strings of your choice
-const char* mqtt_client_name = "ESP32Client";
+const char* mqtt_client_name = "ESPYS2111";
 //The topic to which our client will publish
 const char* mqtt_pub_topic = "/ys/testpub"; 
 //The topic to which our client will subscribe
@@ -157,6 +158,8 @@ void loop()
 
       /******************* save all the wifi access point scans in the message string ****************/
       for (int i = 0; i < n; ++i) {
+        mqttMessage = mqttMessage + String(i + 1) + COLON_TOKEN;
+        
         mqttMessage = mqttMessage + RIGHT_PARENTHESIS;
 
         mqttMessage = mqttMessage + "Bssid" + COLON_TOKEN + WiFi.BSSIDstr(i) + COMMA;
@@ -189,6 +192,9 @@ void loop()
       messageSize = mqttMessage.length();
       partialMessageLength = ACCESS_POINT_SENT_PER_MESSAGE * ACCESSPOINT_INFO_LENGTH;
       bool firstTime = true;
+
+      Serial.println(mqttMessage);
+      
       for (FROMStringIndex = 0; FROMStringIndex < messageSize; FROMStringIndex += partialMessageLength) {
        
         if (FROMStringIndex + partialMessageLength > messageSize) {
@@ -196,7 +202,7 @@ void loop()
         }
         else {
           TOStringIndex = FROMStringIndex + partialMessageLength;
-         
+          TOStringIndex += ACCESS_POINT_SENT_PER_MESSAGE * 2;
         }
 
         if (firstTime){
@@ -218,7 +224,7 @@ void loop()
         }
         
         FROMStringIndex += commaNumber;
-       
+        FROMStringIndex += ACCESS_POINT_SENT_PER_MESSAGE * 2;
       }
 
       Serial.println("Message published");
