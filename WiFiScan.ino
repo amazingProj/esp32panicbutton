@@ -1,32 +1,22 @@
-/*
- * Virtuino MQTT getting started example
- * Broker: HiveMQ (Secure connection)
- * Supported boards: ESP8266 / ESP32 
- */
-
 #ifdef ESP8266
- #include <ESP8266WiFi.h>  // Pins for board ESP8266 Wemos-NodeMCU
+ #include <ESP8266WiFi.h>
  #else
  #include <WiFi.h>  
 #endif
- 
+
+#include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
 
-// 0 is false and 1 is true
-#define DEBUG_MODE 0
+StaticJsonDocument<1596> doc;
+JsonObject wifiScanData;
+
 // global variables, change them to change code behavior
 #define LOOPER_DELAY 10000
-#define PORT 3000
+
 #define ACCESSPOINT_INFO_LENGTH 34
 // how much access point per one message section
-#define ACCESS_POINT_SENT_PER_MESSAGE 4
-
-/*** define symbols ***/
-#define RIGHT_PARENTHESIS "{"
-#define LEFT_PARENTHESIS "}"
-#define COLON_TOKEN ":"
-#define COMMA ","
+#define NUMBER_OF_PARTIAL_OF_TOTAL_MESSAGE 10
 
 //---- WiFi settings
 const char* ssid = "benny";
@@ -34,40 +24,30 @@ const char* password = "0585002913";
 
 //---- MQTT Broker settings
 // replace with your broker url
-const char* mqtt_server = "712d6a94edd544ddac8b5c44600f18d3.s1.eu.hivemq.cloud"; 
-const char* mqtt_username = "Esp32";
-const char* mqtt_password = "Esp32Asaf";
-const int mqtt_port = 8883;
-/// buffers in use in the code 
-char messageBuffer[1024];
- 
+const char* mqttServer = "712d6a94edd544ddac8b5c44600f18d3.s1.eu.hivemq.cloud"; 
+const char* mqttUsername = "Esp32";
+const char* mqttPassword = "Esp32Asaf";
+const int mqttPort = 8883;
+//The topic to which our client will publish
+const char* mqtt_pub_topic = "users/wifi/scan"; 
+//The topic to which our client will subscribe
+const char* mqtt_sub_topic = "users/acknowledgement"; 
 
-WiFiClientSecure espClient;   // for no secure connection use WiFiClient instead of WiFiClientSecure 
+WiFiClientSecure espClient;   
 //WiFiClient espClient;
 PubSubClient client(espClient);
-unsigned long lastMsg = 0;
 
-// belongs to the section that make the message in json format
-String mqttMessage = "";
-int FROMStringIndex = 0;
-int TOStringIndex = 0;
-int messageSize = 0;
-int headerOfMqttMessageLength = 0;
-int partialMessageLength = 194;
-int temp = 0;
-int commaNumber = ACCESS_POINT_SENT_PER_MESSAGE;
-
-#define MSG_BUFFER_SIZE  (50)
+#define MSG_BUFFER_SIZE  (1024)
 char msg[MSG_BUFFER_SIZE];
-
+String mqttString;
+int stringLength = 0;
+String fixedString;
+String macAddressString;
 
 // for task scheduling
 uint64_t messageTimestamp;
 
-//The topic to which our client will publish
-const char* mqtt_pub_topic = "users/wifi/scan"; 
-//The topic to which our client will subscribe
-const char* mqtt_sub_topic = "/ys/testsub"; 
+
 
 
 static const char *root_ca PROGMEM = R"EOF(
@@ -123,8 +103,6 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
-
-//=====================================
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
@@ -133,7 +111,7 @@ void reconnect() {
     String clientId = "ESP32Client-";   
     clientId += String(random(0xffff), HEX);
     // Attempt to connect
-    if (client.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
+    if (client.connect(clientId.c_str(), mqttUsername, mqttPassword)) {
       Serial.println("connected");
     } else {
       Serial.print("failed, rc=");
@@ -145,28 +123,29 @@ void reconnect() {
   }
 }
 
-//================================================ setup
-//================================================
-void setup() {
+//================================================ setup ================================================
+void setup() 
+{
   Serial.begin(9600);
   while (!Serial) delay(1);
   setup_wifi();
 
   #ifdef ESP8266
     espClient.setInsecure();
-  #else   // for the ESP32
-    espClient.setCACert(root_ca);      // enable this line and the the "certificate" code for secure connection
+  #else  
+    // for the ESP32 
+
+    // enable this line and the the "certificate" code for secure connection
+    espClient.setCACert(root_ca);      
   #endif
   
-  client.setServer(mqtt_server, mqtt_port);
+  client.setServer(mqttServer, mqttPort);
   client.setCallback(callback);
 }
 
-
-//================================================ loop
-//================================================
-void loop() {
-
+//================================================ loop ================================================
+void loop() 
+{
   if (!client.connected()) reconnect();
   //client.loop();
 
@@ -174,93 +153,60 @@ void loop() {
   uint64_t now = millis();
   if (now - messageTimestamp > LOOPER_DELAY) {
     messageTimestamp = now;
-    
+
     int n = WiFi.scanNetworks();
     
     Serial.println("scan done");
     if (n == 0) {
       Serial.println("no networks found");
-    } else {
+    } 
+    else {
       Serial.print(n);
       Serial.println(" networks found");
-      
-      /***** set the initials values of the message ******/
-      mqttMessage = RIGHT_PARENTHESIS;
-      mqttMessage = mqttMessage + "numberOfAccessPoints" + COLON_TOKEN;
-      mqttMessage = mqttMessage + String(n) + COMMA;
-      mqttMessage = mqttMessage + "macAddress" + COLON_TOKEN;
-      mqttMessage = mqttMessage + WiFi.macAddress() + COMMA;
-      mqttMessage = mqttMessage + "Ssid" + COLON_TOKEN;
-      mqttMessage = mqttMessage + WiFi.SSID() + COMMA;
 
-      // save the length of the string (see above ) 
-      headerOfMqttMessageLength = mqttMessage.length();
-      
-      if (DEBUG_MODE) {
-        //Serial.printf("MAC address = %s", WiFi.softAPmacAddress().c_str());
-        Serial.println(WiFi.macAddress());
-      }
-
-      /******************* save all the wifi access point scans in the message string ****************/
-      for (int i = 0; i < n; ++i) {
-        mqttMessage = mqttMessage + String(i + 1) + COLON_TOKEN;
-        
-        mqttMessage = mqttMessage + RIGHT_PARENTHESIS;
-
-        mqttMessage = mqttMessage + "Bssid" + COLON_TOKEN + WiFi.BSSIDstr(i) + COMMA;
-
-        mqttMessage = mqttMessage + "rssi" + COLON_TOKEN + String(WiFi.RSSI(i));
-
-        mqttMessage = mqttMessage + LEFT_PARENTHESIS;
-        // if this is not the last access point put a comma between two differenet access points
-        if (i != n - 1) {
-          mqttMessage = mqttMessage + COMMA;
-        }
-      }
-      
-      mqttMessage = mqttMessage + LEFT_PARENTHESIS;
-      
-      messageSize = mqttMessage.length();
-      partialMessageLength = ACCESS_POINT_SENT_PER_MESSAGE * ACCESSPOINT_INFO_LENGTH;
-      bool firstTime = true;
-
-      //Serial.println(mqttMessage);
-      
-      for (FROMStringIndex = 0; FROMStringIndex < messageSize; FROMStringIndex += partialMessageLength) {
-       
-        if (FROMStringIndex + partialMessageLength > messageSize) {
-          TOStringIndex = messageSize;
-        }
-        else {
-          TOStringIndex = FROMStringIndex + partialMessageLength;
-          TOStringIndex += ACCESS_POINT_SENT_PER_MESSAGE * 2;
-        }
-
-        if (firstTime){
-          TOStringIndex += headerOfMqttMessageLength; 
-          
-        }
-        
-        TOStringIndex += commaNumber;
-
-        Serial.println(mqttMessage);
-       
-        mqttMessage.substring(FROMStringIndex, TOStringIndex).toCharArray(messageBuffer, sizeof(messageBuffer));
-        
-        client.publish(mqtt_pub_topic, messageBuffer);
+      macAddressString = WiFi.macAddress();
+      // the percent of the battery here
+      doc["Battery"] = 100;
+      doc["NumberOfAccessPoints"] = n;
+      doc["MacAddress"] = macAddressString;
+      doc["WifiSsid"] = WiFi.SSID();
      
-        
-        if (firstTime){
-          FROMStringIndex += headerOfMqttMessageLength;
-          
-          firstTime = false;
-        }
-        
-        FROMStringIndex += commaNumber;
-        FROMStringIndex += ACCESS_POINT_SENT_PER_MESSAGE * 2;
+      /******************* save all the wifi access point scans in the message string ****************/
+      
+      for (int i = 0; i < n; ++i) {
+        wifiScanData = doc.createNestedObject(String(i + 1));
+
+        wifiScanData["EspMacAddress"] = WiFi.macAddress();
+
+        wifiScanData["Bssid"] = WiFi.BSSIDstr(i);
+
+        wifiScanData["Rssi"] = WiFi.RSSI(i);
+
+        wifiScanData["Ssid"] = WiFi.SSID(i);
+
       }
 
-      Serial.println("Message published");
+      mqttString = doc.as<String>();
+      stringLength = mqttString.length();
+      int msgSize = stringLength / NUMBER_OF_PARTIAL_OF_TOTAL_MESSAGE;
+      int counter = 0;
+      for(int j = 0; j < NUMBER_OF_PARTIAL_OF_TOTAL_MESSAGE - 1; ++j){
+         fixedString = String(j + 1) + "," + NUMBER_OF_PARTIAL_OF_TOTAL_MESSAGE + "," + macAddressString + "  " + mqttString.substring(counter, counter + msgSize);
+         fixedString.toCharArray(msg, MSG_BUFFER_SIZE);
+        
+         client.publish(mqtt_pub_topic, msg);
+
+         counter += msgSize;
+      }
+
+      fixedString = String(NUMBER_OF_PARTIAL_OF_TOTAL_MESSAGE) + "," + NUMBER_OF_PARTIAL_OF_TOTAL_MESSAGE + "," + macAddressString + "  " + mqttString.substring(counter, stringLength);
+      fixedString.toCharArray(msg, MSG_BUFFER_SIZE);
+        
+      client.publish(mqtt_pub_topic, msg);
+ 
+      Serial.println("Message published:\n" + mqttString + "\n" + "String size is: " + String(mqttString.length()));
+
+      doc.clear();
     }
     Serial.println("");
   }
@@ -272,7 +218,9 @@ void loop() {
 
 void callback(char* topic, byte* payload, unsigned int length) {
   String incommingMessage = "";
-  for (int i = 0; i < length; i++) incommingMessage+=(char)payload[i];
+  for (int i = 0; i < length; ++i){
+    incommingMessage += (char)payload[i];
+  }
   
   Serial.println("Message arrived ["+String(topic)+"]"+incommingMessage);
 }
