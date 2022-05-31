@@ -11,6 +11,26 @@
 StaticJsonDocument<1596> doc;
 JsonObject wifiScanData;
 
+//for Button press check
+#define BUTTON_PIN 21 // GIOP21 pin connected to button
+#define ONBOARD_LED  2
+// Variables will change:
+int lastState = HIGH; // the previous state from the input pin
+int currentState;     // the current reading from the input pin
+//Define resistors
+#define R2 100
+#define R3 10
+#define VOLTAGE_OUT(Vin) (((Vin) * R3) / (R2 + R3))
+//ESP32 0% and 100%
+#define VOLTAGE_MAX 4200
+#define VOLTAGE_MIN 3300
+#define ADC_REFERENCE 1100
+#define VOLTAGE_TO_ADC(in) ((ADC_REFERENCE * (in)) / 4096)
+#define BATTERY_MAX_ADC VOLTAGE_TO_ADC(VOLTAGE_OUT(VOLTAGE_MAX))
+#define BATTERY_MIN_ADC VOLTAGE_TO_ADC(VOLTAGE_OUT(VOLTAGE_MIN))
+
+
+
 // global variables, change them to change code behavior
 #define LOOPER_DELAY 10000
 
@@ -143,6 +163,15 @@ void setup()
   client.setCallback(callback);
 }
 
+//===========================================button press setup ================================================
+void setup() {
+  Serial.begin(9600);
+  // initialize the pushbutton pin as an pull-up input
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(ONBOARD_LED,OUTPUT); 
+}
+
+
 //================================================ loop ================================================
 void loop() 
 {
@@ -212,7 +241,29 @@ void loop()
   }
   
 }
+//================================================ loop to check if was pressed and battary voltage================================================
+void loop() {
+  // read the state of the switch/button:
+  currentState = digitalRead(BUTTON_PIN);
 
+  if(lastState == LOW && currentState == HIGH)
+    digitalWrite(ONBOARD_LED,HIGH);
+  // save the last state
+  lastState = currentState;
+  int calc_battery_percentage(int adc)
+  {
+    int battery_percentage = 100 * (adc - BATTERY_MIN_ADC) / (BATTERY_MAX_ADC - BATTERY_MIN_ADC);
+
+    if (battery_percentage < 0)
+        battery_percentage = 0;
+    if (battery_percentage > 100)
+        battery_percentage = 100;
+
+    return battery_percentage;
+  }
+    
+}
+ 
 //=======================================  
 // This void is called every time we have a message from the broker
 
